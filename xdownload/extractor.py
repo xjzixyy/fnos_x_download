@@ -388,7 +388,6 @@ def _tweet_html_has_video_marker(tweet_html: str) -> bool:
         "name='twitter:card' content='player'",
         'property="og:video',
         "property='og:video",
-        "video.twimg.com",
         "data-testid=\"videoPlayer\"".lower(),
         "<video",
     )

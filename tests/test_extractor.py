@@ -175,6 +175,34 @@ class ExtractorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "没有从下载页面提取到视频链接"):
             extractor.extract_media("https://x.com/a/status/1")
 
+    def test_extract_media_uses_images_when_page_has_unrelated_video_cdn_string(self):
+        class StaticOpener:
+            def open(self, request, timeout):
+                url = request.full_url
+                if "twittervideodownloader.com" in url:
+                    return FakeTextResponse("<html><form id='myForm' action='/download'></form></html>")
+                return FakeTextResponse(
+                    """
+                    <meta property="og:type" content="article">
+                    <script>window.__cdn = "https://video.twimg.com/example";</script>
+                    <img src="https://pbs.twimg.com/media/GxJIrSUagAAK-ZP?format=jpg&amp;name=240x240">
+                    """
+                )
+
+        extractor = TwitterVideoDownloaderExtractor(StaticOpener(), retry_delay_seconds=0)
+
+        self.assertEqual(
+            extractor.extract_media("https://x.com/qaqa49816/status/2071598873848824071?s=20"),
+            [
+                {
+                    "media_type": "image",
+                    "resolution": "原图",
+                    "url": "https://pbs.twimg.com/media/GxJIrSUagAAK-ZP?format=jpg&name=orig",
+                    "thumbnail_url": "https://pbs.twimg.com/media/GxJIrSUagAAK-ZP?format=jpg&name=small",
+                }
+            ],
+        )
+
     def test_extract_media_does_not_append_video_thumbnail_as_image(self):
         class StaticOpener:
             def open(self, request, timeout):
