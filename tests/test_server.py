@@ -143,7 +143,7 @@ class ServerTest(unittest.TestCase):
         self.assertIn(r"split(/\r?\n/)", PAGE_HTML)
         self.assertNotIn("split(/\r?\n/)", PAGE_HTML)
         self.assertIn("urls: tweetUrls", PAGE_HTML)
-        self.assertIn("已加入 ${data.count || tweetUrls.length} 条链接", PAGE_HTML)
+        self.assertNotIn("已加入 ${data.count || tweetUrls.length} 条链接", PAGE_HTML)
         self.assertNotIn('id="pasteBtn"', PAGE_HTML)
         self.assertIn('class="task-actions"', PAGE_HTML)
 
@@ -154,11 +154,15 @@ class ServerTest(unittest.TestCase):
         self.assertIn("<title>x下载</title>", PAGE_HTML)
 
     def test_page_uses_compact_form_and_scrollable_queue(self):
+        self.assertIn('class="left-stack"', PAGE_HTML)
+        self.assertIn('class="panel link-panel"', PAGE_HTML)
+        self.assertIn('class="panel path-panel"', PAGE_HTML)
         self.assertIn('id="enqueueBtn"', PAGE_HTML)
         self.assertIn("#enqueueBtn { width: 100%; }", PAGE_HTML)
         self.assertNotIn('id="downloadDirText"', PAGE_HTML)
-        self.assertNotIn("保存目录：", PAGE_HTML)
+        self.assertIn("保存目录：", PAGE_HTML)
         self.assertIn("queue-shell", PAGE_HTML)
+        self.assertIn("queue-header", PAGE_HTML)
 
     def test_enqueue_without_download_dir_is_rejected(self):
         handler = create_handler(

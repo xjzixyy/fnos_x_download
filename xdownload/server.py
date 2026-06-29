@@ -23,18 +23,23 @@ PAGE_HTML = """<!doctype html>
     body { margin: 0; background: #f6f7f9; color: #172033; }
     main { width: min(1180px, calc(100vw - 20px)); margin: 10px auto; }
     .layout { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .left-stack { display: grid; gap: 12px; }
     label { display: block; margin: 0 0 8px; color: #374151; font-size: 14px; font-weight: 600; }
     input[type="text"] { width: 100%; box-sizing: border-box; border: 1px solid #cfd6e4; border-radius: 8px; padding: 11px 12px; font-size: 15px; line-height: 1.4; background: #fff; }
     textarea { width: 100%; min-height: 150px; box-sizing: border-box; resize: vertical; border: 1px solid #cfd6e4; border-radius: 8px; padding: 14px; font-size: 16px; line-height: 1.5; background: #fff; }
-    .field { margin-top: 12px; }
-    .actions { display: flex; margin: 12px 0 16px; }
+    .actions { display: flex; margin: 12px 0 0; }
     button { border: 0; border-radius: 8px; padding: 11px 16px; font-size: 15px; cursor: pointer; color: #fff; background: #1f6feb; }
     #enqueueBtn { width: 100%; }
-    button.retry { background: #b45309; padding: 7px 10px; font-size: 13px; }
-    button.stop { background: #b42318; padding: 7px 10px; font-size: 13px; }
+    button.retry { background: #b45309; padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+    button.stop { background: #b42318; padding: 4px 8px; font-size: 12px; border-radius: 6px; }
     button:disabled { cursor: wait; opacity: .66; }
-    .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 14px; min-height: 220px; box-sizing: border-box; }
+    .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 14px; box-sizing: border-box; }
+    .link-panel { min-height: 236px; }
+    .path-panel { min-height: 0; }
     .queue-shell { max-height: calc(100vh - 20px); overflow-y: auto; }
+    .queue-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; color: #536179; font-size: 13px; }
+    .queue-title { color: #172033; font-weight: 700; font-size: 14px; }
+    .queue-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hint, .empty { color: #536179; margin: 0; line-height: 1.5; }
     .queue { display: grid; gap: 6px; }
     .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 8px; background: #fff; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: center; }
@@ -44,7 +49,7 @@ PAGE_HTML = """<!doctype html>
     .task-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #172033; font-size: 14px; }
     .task-actions { display: inline-flex; margin-left: 8px; vertical-align: middle; }
-    .badge { flex: 0 0 auto; border-radius: 999px; padding: 3px 9px; font-size: 12px; color: #fff; background: #64748b; }
+    .badge { flex: 0 0 auto; border-radius: 6px; padding: 2px 8px; font-size: 12px; line-height: 1.35; color: #fff; background: #64748b; }
     .badge.queued { background: #64748b; }
     .badge.running { background: #2563eb; }
     .badge.success { background: #15803d; }
@@ -64,19 +69,24 @@ PAGE_HTML = """<!doctype html>
 <body>
 <main>
   <div class="layout">
-    <section class="panel">
-      <label for="tweetInput">媒体链接</label>
-      <textarea id="tweetInput" placeholder="粘贴 X/Twitter 图片或视频链接；多个链接请每行一个"></textarea>
-      <div class="actions">
-        <button id="enqueueBtn" type="button">加入队列</button>
-      </div>
-      <div class="field">
+    <div class="left-stack">
+      <section class="panel link-panel">
+        <label for="tweetInput">媒体链接</label>
+        <textarea id="tweetInput" placeholder="粘贴 X/Twitter 图片或视频链接；多个链接请每行一个"></textarea>
+        <div class="actions">
+          <button id="enqueueBtn" type="button">加入队列</button>
+        </div>
+      </section>
+      <section class="panel path-panel">
         <label for="downloadDirInput">基础下载地址</label>
         <input id="downloadDirInput" type="text" autocomplete="off" placeholder="/vol1/1000/downloads/xdownload">
-      </div>
-      <p class="hint" id="messageText"></p>
-    </section>
+      </section>
+    </div>
     <section class="panel queue-shell">
+      <div class="queue-header">
+        <span class="queue-title">下载队列</span>
+        <span class="queue-dir" id="queueDirText"></span>
+      </div>
       <div id="queuePanel" class="queue">
         <p class="empty">下载队列为空。</p>
       </div>
@@ -87,7 +97,7 @@ PAGE_HTML = """<!doctype html>
 const input = document.querySelector("#tweetInput");
 const downloadDirInput = document.querySelector("#downloadDirInput");
 const queuePanel = document.querySelector("#queuePanel");
-const messageText = document.querySelector("#messageText");
+const queueDirText = document.querySelector("#queueDirText");
 const enqueueBtn = document.querySelector("#enqueueBtn");
 let downloadDir = "";
 
@@ -96,9 +106,11 @@ async function loadDefaultConfig() {
     const data = await fetch("/api/config").then((response) => response.json());
     downloadDir = localStorage.getItem("xdownload.downloadDir") || data.download_dir || "";
     downloadDirInput.value = downloadDir;
+    updateQueueDirText();
   } catch (error) {
     downloadDir = localStorage.getItem("xdownload.downloadDir") || "";
     downloadDirInput.value = downloadDir;
+    updateQueueDirText();
   }
 }
 
@@ -106,9 +118,9 @@ function setBusy(isBusy) {
   enqueueBtn.disabled = isBusy;
 }
 
-function showStatus(message, className = "status") {
-  messageText.className = className;
-  messageText.textContent = message;
+function updateQueueDirText() {
+  const value = downloadDirInput.value.trim();
+  queueDirText.textContent = value ? `保存目录：${value}/YYYYMMDD` : "";
 }
 
 function escapeHtml(value) {
@@ -146,9 +158,9 @@ async function enqueueLink() {
     throw new Error("下载目录未设置");
   }
   localStorage.setItem("xdownload.downloadDir", downloadDir);
-  const data = await postJson("/api/enqueue", {urls: tweetUrls, download_dir: downloadDir});
+  updateQueueDirText();
+  await postJson("/api/enqueue", {urls: tweetUrls, download_dir: downloadDir});
   input.value = "";
-  showStatus(`已加入 ${data.count || tweetUrls.length} 条链接。`);
   await loadQueue();
 }
 
@@ -215,7 +227,7 @@ document.querySelector("#enqueueBtn").addEventListener("click", async () => {
   try {
     await enqueueLink();
   } catch (error) {
-    showStatus(error.message, "error");
+    alert(error.message);
   } finally {
     setBusy(false);
   }
@@ -226,6 +238,7 @@ downloadDirInput.addEventListener("change", () => {
   if (downloadDir) {
     localStorage.setItem("xdownload.downloadDir", downloadDir);
   }
+  updateQueueDirText();
 });
 
 queuePanel.addEventListener("click", async (event) => {
@@ -233,10 +246,9 @@ queuePanel.addEventListener("click", async (event) => {
   if (!target.matches(".retry")) return;
   try {
     await postJson("/api/retry", {id: Number(target.dataset.id)});
-    showStatus("已重新加入下载队列。");
     await loadQueue();
   } catch (error) {
-    showStatus(error.message, "error");
+    alert(error.message);
   }
 });
 
@@ -245,10 +257,9 @@ queuePanel.addEventListener("click", async (event) => {
   if (!target.matches(".stop")) return;
   try {
     await postJson("/api/stop", {id: Number(target.dataset.id)});
-    showStatus("已请求停止任务。");
     await loadQueue();
   } catch (error) {
-    showStatus(error.message, "error");
+    alert(error.message);
   }
 });
 

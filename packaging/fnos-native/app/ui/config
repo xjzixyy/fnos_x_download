@@ -2,6 +2,7 @@
   ".url": {
     "xdownload.Application": {
       "title": "x下载",
+      "icon": "icon.png",
       "type": "iframe",
       "protocol": "http",
       "url": "/cgi/ThirdParty/xdownload/index.cgi",
