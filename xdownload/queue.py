@@ -22,6 +22,9 @@ class DownloadTask:
     path: str = ""
     resolution: str = ""
     error: str = ""
+    media_type: str = ""
+    thumbnail_url: str = ""
+    media_item: dict[str, str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +35,9 @@ class DownloadTask:
             "path": self.path,
             "resolution": self.resolution,
             "error": self.error,
+            "media_type": self.media_type,
+            "thumbnail_url": self.thumbnail_url,
+            "media_item": self.media_item or {},
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -52,6 +58,9 @@ class DownloadTask:
             path=str(payload.get("path") or ""),
             resolution=str(payload.get("resolution") or ""),
             error=str(payload.get("error") or ""),
+            media_type=str(payload.get("media_type") or ""),
+            thumbnail_url=str(payload.get("thumbnail_url") or ""),
+            media_item=dict(payload.get("media_item") or {}) or None,
         )
 
 
@@ -114,6 +123,9 @@ class DownloadQueue:
                 raise ValueError("只有失败或已停止任务可以重新加入队列")
             url = source.url
             download_dir = source.download_dir
+            media_item = dict(source.media_item or {})
+        if media_item:
+            return self._enqueue_media_task(url, download_dir, media_item)
         return self.enqueue(url, download_dir)
 
     def recover_urls(self, urls: list[str], download_dir: Path | str) -> list[dict[str, Any]]:
@@ -157,8 +169,7 @@ class DownloadQueue:
             stop_event = threading.Event()
             with self._lock:
                 self._stop_events[task.id] = stop_event
-            groups = self.extractor.extract(task.url)
-            item = choose_highest_quality(groups)
+            item = self._resolve_media_item(task)
             path = self.downloader.download(
                 item,
                 task.download_dir,
@@ -169,6 +180,9 @@ class DownloadQueue:
                 task.status = "success"
                 task.path = str(path)
                 task.resolution = item.get("resolution", "")
+                task.media_type = item.get("media_type", "")
+                task.thumbnail_url = item.get("thumbnail_url", "")
+                task.media_item = dict(item)
                 task.error = ""
                 task.updated_at = time.time()
                 self._stop_events.pop(task.id, None)
@@ -188,6 +202,77 @@ class DownloadQueue:
                 self._stop_events.pop(task.id, None)
                 self._save()
         return True
+
+    def _resolve_media_item(self, task: DownloadTask) -> dict[str, str]:
+        if task.media_item:
+            task.media_type = task.media_item.get("media_type", "")
+            task.resolution = task.media_item.get("resolution", "")
+            task.thumbnail_url = task.media_item.get("thumbnail_url", "")
+            self._save()
+            return dict(task.media_item)
+
+        if hasattr(self.extractor, "extract_media"):
+            media_items = list(self.extractor.extract_media(task.url))
+        else:
+            media_items = [choose_highest_quality(self.extractor.extract(task.url))]
+        if not media_items:
+            raise ValueError("没有从链接中提取到可下载媒体")
+
+        first = dict(media_items[0])
+        with self._lock:
+            task.media_item = first
+            task.media_type = first.get("media_type", "")
+            task.resolution = first.get("resolution", "")
+            task.thumbnail_url = first.get("thumbnail_url", "")
+            now = time.time()
+            for item in media_items[1:]:
+                media_item = dict(item)
+                child = DownloadTask(
+                    id=self._next_id,
+                    url=task.url,
+                    download_dir=task.download_dir,
+                    status="queued",
+                    created_at=now,
+                    updated_at=now,
+                    resolution=media_item.get("resolution", ""),
+                    media_type=media_item.get("media_type", ""),
+                    thumbnail_url=media_item.get("thumbnail_url", ""),
+                    media_item=media_item,
+                )
+                self._next_id += 1
+                self._tasks.append(child)
+            self._save()
+            self._condition.notify_all()
+        return first
+
+    def _enqueue_media_task(self, url: str, download_dir: Path | str, media_item: dict[str, str]) -> dict[str, Any]:
+        clean_url = url.strip()
+        clean_download_dir = str(download_dir).strip()
+        if not clean_url:
+            raise ValueError("请先输入链接")
+        if not clean_download_dir:
+            raise ValueError("请先设置下载目录")
+        with self._lock:
+            now = time.time()
+            task = DownloadTask(
+                id=self._next_id,
+                url=clean_url,
+                download_dir=Path(clean_download_dir),
+                status="queued",
+                created_at=now,
+                updated_at=now,
+                resolution=media_item.get("resolution", ""),
+                media_type=media_item.get("media_type", ""),
+                thumbnail_url=media_item.get("thumbnail_url", ""),
+                media_item=dict(media_item),
+            )
+            self._next_id += 1
+            self._tasks.append(task)
+            self._save()
+            snapshot = task.to_dict()
+            self._condition.notify()
+        self._ensure_worker()
+        return snapshot
 
     def _ensure_workers(self) -> None:
         if not self.auto_start:

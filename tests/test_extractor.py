@@ -5,6 +5,7 @@ from xdownload.extractor import (
     VideoGroup,
     TwitterVideoDownloaderExtractor,
     choose_highest_quality,
+    extract_image_items,
     parse_download_groups,
     resolution_score,
 )
@@ -14,11 +15,13 @@ SAMPLE_DOWNLOAD_HTML = """
 <html>
   <body>
     <div class="card">
+      <div class="card-body"><div class="text-center"><img src="https://pbs.twimg.com/media/thumb1.jpg"></div></div>
       <h3>Download Video 1</h3>
       <a class="btn" href="https://video.twimg.com/ext_tw_video/one/vid/320x568/a.mp4">Download 320x568</a>
       <a class="btn" href="https://video.twimg.com/ext_tw_video/one/vid/720x1280/b.mp4?tag=12">Download 720x1280</a>
     </div>
     <div class="card">
+      <div class="card-body"><div class="text-center"><img src="https://pbs.twimg.com/media/thumb2.jpg"></div></div>
       <h3>Download Video 2</h3>
       <a href="https://video.twimg.com/ext_tw_video/two/vid/480x852/c.mp4">Download 480x852</a>
       <a href="https://video.twimg.com/ext_tw_video/two/vid/1280x720/d.mp4">Download 1280x720</a>
@@ -41,10 +44,14 @@ class ExtractorTest(unittest.TestCase):
                         {
                             "resolution": "320x568",
                             "url": "https://video.twimg.com/ext_tw_video/one/vid/320x568/a.mp4",
+                            "media_type": "video",
+                            "thumbnail_url": "https://pbs.twimg.com/media/thumb1.jpg",
                         },
                         {
                             "resolution": "720x1280",
                             "url": "https://video.twimg.com/ext_tw_video/one/vid/720x1280/b.mp4?tag=12",
+                            "media_type": "video",
+                            "thumbnail_url": "https://pbs.twimg.com/media/thumb1.jpg",
                         },
                     ],
                 ),
@@ -54,10 +61,14 @@ class ExtractorTest(unittest.TestCase):
                         {
                             "resolution": "480x852",
                             "url": "https://video.twimg.com/ext_tw_video/two/vid/480x852/c.mp4",
+                            "media_type": "video",
+                            "thumbnail_url": "https://pbs.twimg.com/media/thumb2.jpg",
                         },
                         {
                             "resolution": "1280x720",
                             "url": "https://video.twimg.com/ext_tw_video/two/vid/1280x720/d.mp4",
+                            "media_type": "video",
+                            "thumbnail_url": "https://pbs.twimg.com/media/thumb2.jpg",
                         },
                     ],
                 ),
@@ -97,6 +108,55 @@ class ExtractorTest(unittest.TestCase):
 
         self.assertEqual(choose_highest_quality(groups), {"resolution": "720x1280", "url": "high"})
 
+    def test_extract_image_items_returns_orig_urls_and_thumbnails(self):
+        html = """
+        <meta property="og:image" content="https://pbs.twimg.com/media/ONE.jpg:large">
+        <img src="https://pbs.twimg.com/media/TWO?format=png&amp;name=small">
+        <img src="https://pbs.twimg.com/media/ONE.jpg:large">
+        """
+
+        items = extract_image_items(html)
+
+        self.assertEqual(
+            items,
+            [
+                {
+                    "media_type": "image",
+                    "resolution": "原图",
+                    "url": "https://pbs.twimg.com/media/ONE?format=jpg&name=orig",
+                    "thumbnail_url": "https://pbs.twimg.com/media/ONE?format=jpg&name=small",
+                },
+                {
+                    "media_type": "image",
+                    "resolution": "原图",
+                    "url": "https://pbs.twimg.com/media/TWO?format=png&name=orig",
+                    "thumbnail_url": "https://pbs.twimg.com/media/TWO?format=png&name=small",
+                },
+            ],
+        )
+
+    def test_extract_media_uses_images_when_video_parser_finds_no_video(self):
+        class StaticOpener:
+            def open(self, request, timeout):
+                url = request.full_url
+                if "twittervideodownloader.com" in url:
+                    return FakeTextResponse("<html><form id='myForm' action='/download'></form></html>")
+                return FakeTextResponse('<img src="https://pbs.twimg.com/media/ONE.jpg:large">')
+
+        extractor = TwitterVideoDownloaderExtractor(StaticOpener(), retry_delay_seconds=0)
+
+        self.assertEqual(
+            extractor.extract_media("https://x.com/a/status/1"),
+            [
+                {
+                    "media_type": "image",
+                    "resolution": "原图",
+                    "url": "https://pbs.twimg.com/media/ONE?format=jpg&name=orig",
+                    "thumbnail_url": "https://pbs.twimg.com/media/ONE?format=jpg&name=small",
+                }
+            ],
+        )
+
     def test_extract_reports_connection_reset_during_home_request(self):
         class ResettingOpener:
             def open(self, request, timeout):
@@ -106,3 +166,21 @@ class ExtractorTest(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "请求解析站首页失败：连接被远端重置"):
             extractor.extract("https://x.com/a/status/1")
+
+
+class FakeTextResponse:
+    def __init__(self, text):
+        self.text = text
+        self.headers = self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def get_content_charset(self):
+        return "utf-8"
+
+    def read(self):
+        return self.text.encode("utf-8")

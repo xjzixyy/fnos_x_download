@@ -54,6 +54,11 @@ class ServerTest(unittest.TestCase):
         self.assertIn('id="downloadDirInput"', PAGE_HTML)
         self.assertIn("基础下载地址", PAGE_HTML)
 
+    def test_page_renders_task_thumbnail(self):
+        self.assertIn("thumbnail_url", PAGE_HTML)
+        self.assertIn('class="thumb"', PAGE_HTML)
+        self.assertIn("media_type", PAGE_HTML)
+
     def test_create_handler_returns_handler_class(self):
         handler = create_handler(
             AppConfig(download_dir=Path("/tmp"), port=8888, queue_file=Path("/tmp/queue.json"), max_concurrency=2, task_timeout_seconds=30),

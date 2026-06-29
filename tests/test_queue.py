@@ -27,6 +27,35 @@ class FakeExtractor:
             }
         ]
 
+    def extract_media(self, url):
+        groups = self.extract(url)
+        return [
+            {
+                "media_type": "video",
+                "resolution": "1280x720",
+                "url": groups[0]["items"][1]["url"],
+                "thumbnail_url": "https://example.com/thumb.jpg",
+            }
+        ]
+
+
+class MultiImageExtractor:
+    def extract_media(self, url):
+        return [
+            {
+                "media_type": "image",
+                "resolution": "原图",
+                "url": "https://pbs.twimg.com/media/one?format=jpg&name=orig",
+                "thumbnail_url": "https://pbs.twimg.com/media/one?format=jpg&name=small",
+            },
+            {
+                "media_type": "image",
+                "resolution": "原图",
+                "url": "https://pbs.twimg.com/media/two?format=jpg&name=orig",
+                "thumbnail_url": "https://pbs.twimg.com/media/two?format=jpg&name=small",
+            },
+        ]
+
 
 class FakeDownloader:
     def __init__(self):
@@ -82,10 +111,41 @@ class DownloadQueueTest(unittest.TestCase):
 
             tasks = queue.list_tasks()
         self.assertEqual(tasks[0]["status"], "success")
+        self.assertEqual(tasks[0]["media_type"], "video")
+        self.assertEqual(tasks[0]["thumbnail_url"], "https://example.com/thumb.jpg")
         self.assertEqual(tasks[0]["resolution"], "1280x720")
         self.assertEqual(tasks[0]["path"], "/downloads/20260610/video.mp4")
         self.assertEqual(downloader.calls[0][0]["url"], "https://example.com/high.mp4")
         self.assertEqual(downloader.calls[0][1], Path("/downloads"))
+
+    def test_process_next_expands_multiple_media_items(self):
+        downloader = FakeDownloader()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            queue = DownloadQueue(
+                MultiImageExtractor(),
+                downloader,
+                queue_file=Path(temp_dir) / "queue.json",
+                auto_start=False,
+            )
+            queue.enqueue("https://x.com/a", Path("/downloads"))
+
+            queue.process_next()
+            queue.process_next()
+
+            tasks = queue.list_tasks()
+
+        self.assertEqual(len(tasks), 2)
+        self.assertEqual([task["status"] for task in tasks], ["success", "success"])
+        self.assertEqual([task["media_type"] for task in tasks], ["image", "image"])
+        self.assertEqual(
+            [task["thumbnail_url"] for task in tasks],
+            [
+                "https://pbs.twimg.com/media/one?format=jpg&name=small",
+                "https://pbs.twimg.com/media/two?format=jpg&name=small",
+            ],
+        )
+        self.assertEqual(downloader.calls[0][0]["url"], "https://pbs.twimg.com/media/one?format=jpg&name=orig")
+        self.assertEqual(downloader.calls[1][0]["url"], "https://pbs.twimg.com/media/two?format=jpg&name=orig")
 
     def test_process_next_marks_failed_task(self):
         with tempfile.TemporaryDirectory() as temp_dir:

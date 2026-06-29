@@ -17,9 +17,16 @@ from .extractor import USER_AGENT
 def build_filename(url: str, resolution: str) -> str:
     parsed = urllib.parse.urlparse(url)
     basename = Path(urllib.parse.unquote(parsed.path)).name or "video.mp4"
+    query = urllib.parse.parse_qs(parsed.query)
+    image_format = query.get("format", [""])[0].lower()
+    if parsed.netloc.endswith("twimg.com") and image_format:
+        image_name = query.get("name", [""])[0]
+        basename = f"{basename}_{image_name}.{image_format}" if image_name else f"{basename}.{image_format}"
     stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(basename).stem).strip("_") or "video"
-    suffix = Path(basename).suffix if Path(basename).suffix.lower() == ".mp4" else ".mp4"
-    clean_resolution = re.sub(r"[^0-9xX]+", "", resolution) or "unknown"
+    suffix = Path(basename).suffix.lower()
+    if suffix not in (".mp4", ".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        suffix = ".mp4"
+    clean_resolution = "orig" if resolution == "原图" else re.sub(r"[^0-9xX]+", "", resolution) or "unknown"
     return f"{int(time.time())}_{clean_resolution}_{stem}{suffix}"
 
 

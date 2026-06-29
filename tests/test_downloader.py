@@ -42,6 +42,12 @@ class DownloaderTest(unittest.TestCase):
         self.assertTrue(filename.endswith(".mp4"))
         self.assertIn("720x1280", filename)
 
+    def test_build_filename_uses_image_format_extension(self):
+        filename = build_filename("https://pbs.twimg.com/media/ONE?format=jpg&name=orig", "原图")
+
+        self.assertTrue(filename.endswith(".jpg"))
+        self.assertIn("orig", filename)
+
     def test_save_response_body_writes_chunks(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             target = Path(temp_dir) / "video.mp4"
@@ -94,6 +100,29 @@ class DownloaderTest(unittest.TestCase):
                         "url": "https://video.twimg.com/amplify_video/foo/vid/avc1/720x800/file.mp4",
                     }
                 )
+
+        self.assertEqual(captured_requests[0].headers["Referer"], "https://twitter.com/")
+
+    def test_download_uses_image_headers_for_pbs_media(self):
+        captured_requests = []
+
+        def fake_urlopen(request, timeout):
+            captured_requests.append(request)
+            return FakeResponse(chunks=[b"img", b""])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloader = VideoDownloader(Path(temp_dir), today=lambda: date(2026, 6, 9))
+            with patch("urllib.request.urlopen", fake_urlopen):
+                path = downloader.download(
+                    {
+                        "media_type": "image",
+                        "resolution": "原图",
+                        "url": "https://pbs.twimg.com/media/ONE?format=png&name=orig",
+                    }
+                )
+
+            self.assertEqual(path.suffix, ".png")
+            self.assertEqual(path.read_bytes(), b"img")
 
         self.assertEqual(captured_requests[0].headers["Referer"], "https://twitter.com/")
 

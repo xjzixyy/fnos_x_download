@@ -56,6 +56,64 @@ class LinkParser(HTMLParser):
             self._active_text = []
 
 
+class VideoCardParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.cards: list[dict[str, object]] = []
+        self._current_card: dict[str, object] | None = None
+        self._active_href: str | None = None
+        self._active_text: list[str] = []
+        self._div_stack: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = {key: value or "" for key, value in attrs}
+        lowered_tag = tag.lower()
+        if lowered_tag == "div":
+            class_value = attr_map.get("class", "")
+            classes = set(class_value.split())
+            marker = ""
+            if "card" in classes:
+                self._current_card = {"links": [], "thumbnail_url": ""}
+                marker = "card"
+            elif "card-body" in classes:
+                marker = "card-body"
+            elif "text-center" in classes:
+                marker = "text-center"
+            self._div_stack.append(marker)
+            return
+        if self._current_card is None:
+            return
+        if lowered_tag == "img" and "card-body" in self._div_stack and "text-center" in self._div_stack:
+            src = attr_map.get("src")
+            if src and not self._current_card.get("thumbnail_url"):
+                self._current_card["thumbnail_url"] = html.unescape(src)
+            return
+        if lowered_tag == "a":
+            href = attr_map.get("href")
+            if href:
+                self._active_href = html.unescape(href)
+                self._active_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._active_href:
+            self._active_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        lowered_tag = tag.lower()
+        if lowered_tag == "a" and self._current_card is not None and self._active_href:
+            links = self._current_card["links"]
+            assert isinstance(links, list)
+            links.append((self._active_href, " ".join(self._active_text).strip()))
+            self._active_href = None
+            self._active_text = []
+            return
+        if lowered_tag == "div" and self._div_stack:
+            marker = self._div_stack.pop()
+            if marker == "card" and self._current_card is not None:
+                self.cards.append(self._current_card)
+                self._current_card = None
+
+
 class FormParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -98,6 +156,11 @@ def choose_highest_quality(groups: list[VideoGroup] | list[dict[str, object]]) -
 
 
 def parse_download_groups(download_html: str) -> list[VideoGroup]:
+    card_parser = VideoCardParser()
+    card_parser.feed(download_html)
+    if card_parser.cards:
+        return _parse_card_download_groups(card_parser.cards)
+
     parser = LinkParser()
     parser.feed(download_html)
 
@@ -118,7 +181,7 @@ def parse_download_groups(download_html: str) -> list[VideoGroup]:
         if group_key not in grouped:
             grouped[group_key] = []
             group_order.append(group_key)
-        grouped[group_key].append({"resolution": resolution, "url": url})
+        grouped[group_key].append({"media_type": "video", "resolution": resolution, "url": url, "thumbnail_url": ""})
 
     return [
         VideoGroup(
@@ -127,6 +190,78 @@ def parse_download_groups(download_html: str) -> list[VideoGroup]:
         )
         for index, key in enumerate(group_order, start=1)
     ]
+
+
+def _parse_card_download_groups(cards: list[dict[str, object]]) -> list[VideoGroup]:
+    groups: list[VideoGroup] = []
+    for index, card in enumerate(cards, start=1):
+        links = card.get("links") or []
+        thumbnail_url = str(card.get("thumbnail_url") or "")
+        items = []
+        for href, text in links:
+            if not _looks_like_video_link(str(href)):
+                continue
+            url = urllib.parse.urljoin(DOWNLOAD_URL, str(href))
+            items.append(
+                {
+                    "media_type": "video",
+                    "resolution": _extract_resolution(url, str(text)),
+                    "url": url,
+                    "thumbnail_url": thumbnail_url,
+                }
+            )
+        if items:
+            groups.append(
+                VideoGroup(
+                    title=f"视频 {index}",
+                    items=sorted(items, key=lambda item: resolution_score(item["resolution"])),
+                )
+            )
+    return groups
+
+
+def extract_image_items(tweet_html: str) -> list[dict[str, str]]:
+    pattern = r"https://pbs\.twimg\.com/media/[A-Za-z0-9_?&=;:./%-]+"
+    items: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw_url in re.findall(pattern, html.unescape(tweet_html)):
+        image_url, thumbnail_url = _normalize_image_urls(raw_url)
+        if image_url in seen:
+            continue
+        seen.add(image_url)
+        items.append(
+            {
+                "media_type": "image",
+                "resolution": "原图",
+                "url": image_url,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+    return items
+
+
+def _normalize_image_urls(raw_url: str) -> tuple[str, str]:
+    url = raw_url.rstrip(".,)")
+    url = url.split('"', 1)[0].split("'", 1)[0]
+    parsed = urllib.parse.urlparse(url)
+    media_id = parsed.path.rsplit("/", 1)[-1]
+    query = urllib.parse.parse_qs(parsed.query)
+    image_format = query.get("format", [""])[0]
+    if ":" in media_id:
+        media_id, suffix = media_id.rsplit(":", 1)
+        if "." in media_id:
+            media_id, ext = media_id.rsplit(".", 1)
+            image_format = image_format or ext
+        image_format = image_format or ("jpg" if suffix else "")
+    elif "." in media_id:
+        media_id, ext = media_id.rsplit(".", 1)
+        image_format = image_format or ext
+    image_format = image_format or "jpg"
+    base = f"https://pbs.twimg.com/media/{media_id}"
+    return (
+        f"{base}?format={image_format}&name=orig",
+        f"{base}?format={image_format}&name=small",
+    )
 
 
 def _looks_like_video_link(href: str) -> bool:
@@ -164,6 +299,23 @@ class TwitterVideoDownloaderExtractor:
         self.retry_delay_seconds = max(0.0, float(retry_delay_seconds))
 
     def extract(self, tweet_url: str) -> list[dict[str, object]]:
+        groups = self.extract_video_groups(tweet_url)
+        return [group.to_dict() for group in groups]
+
+    def extract_media(self, tweet_url: str) -> list[dict[str, str]]:
+        media_items: list[dict[str, str]] = []
+        try:
+            groups = self.extract_video_groups(tweet_url)
+            media_items.extend(choose_highest_quality([group]) for group in groups)
+        except ValueError:
+            pass
+        tweet_html = self._request_text(tweet_url.strip(), error_context="请求推文页面")
+        media_items.extend(extract_image_items(tweet_html))
+        if not media_items:
+            raise ValueError("没有从推文中提取到图片或视频")
+        return media_items
+
+    def extract_video_groups(self, tweet_url: str) -> list[VideoGroup]:
         cleaned_url = tweet_url.strip()
         if not cleaned_url:
             raise ValueError("请输入 X/Twitter 链接")
@@ -188,7 +340,7 @@ class TwitterVideoDownloaderExtractor:
         groups = parse_download_groups(download_html)
         if not groups:
             raise ValueError("没有从下载页面提取到视频链接")
-        return [group.to_dict() for group in groups]
+        return groups
 
     def _request_text(
         self,

@@ -37,7 +37,9 @@ PAGE_HTML = """<!doctype html>
     .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 16px; min-height: 240px; }
     .hint, .empty { color: #536179; margin: 0; line-height: 1.5; }
     .queue { display: grid; gap: 10px; }
-    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 12px; background: #fff; }
+    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 12px; background: #fff; display: grid; grid-template-columns: 92px 1fr; gap: 12px; }
+    .thumb { width: 92px; height: 92px; object-fit: cover; border-radius: 6px; background: #eef2f7; border: 1px solid #e5e9f2; }
+    .thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #7b8798; font-size: 13px; }
     .task-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 8px; }
     .url { min-width: 0; overflow-wrap: anywhere; color: #172033; }
     .badge { flex: 0 0 auto; border-radius: 999px; padding: 3px 9px; font-size: 12px; color: #fff; background: #64748b; }
@@ -58,8 +60,8 @@ PAGE_HTML = """<!doctype html>
   <h1>x下载</h1>
   <div class="layout">
     <section class="panel">
-      <label for="tweetInput">视频链接</label>
-      <textarea id="tweetInput" placeholder="粘贴 X/Twitter 视频链接，每次提交会自动加入下载队列"></textarea>
+      <label for="tweetInput">媒体链接</label>
+      <textarea id="tweetInput" placeholder="粘贴 X/Twitter 图片或视频链接，每次提交会自动加入下载队列"></textarea>
       <div class="actions">
         <button class="secondary" id="pasteBtn" type="button">粘贴</button>
         <button id="enqueueBtn" type="button">加入队列</button>
@@ -170,25 +172,39 @@ function statusText(status) {
   }[status] || status;
 }
 
+function mediaText(mediaType) {
+  return {video: "视频", image: "图片"}[mediaType] || "媒体";
+}
+
 function renderQueue(tasks) {
   if (!tasks.length) {
     queuePanel.innerHTML = `<p class="empty">下载队列为空。</p>`;
     return;
   }
   queuePanel.innerHTML = tasks.slice().reverse().map((task) => {
+    const mediaType = task.media_type || "";
+    const thumbnail = task.thumbnail_url
+      ? `<img class="thumb" src="${escapeHtml(task.thumbnail_url)}" alt="">`
+      : `<div class="thumb placeholder">${escapeHtml(mediaText(mediaType))}</div>`;
+    const waitingText = mediaType === "image" ? "等待自动下载原图" : "等待自动提取最高分辨率";
+    const resolutionLabel = mediaType === "image" ? "质量" : "分辨率";
     const detail = task.status === "success"
       ? `<p class="meta path">已保存：${escapeHtml(task.path)}</p>`
       : task.status === "failed"
         ? `<p class="meta error">${escapeHtml(task.error || "下载失败")}</p><button class="retry" data-id="${task.id}" type="button">重新加入队列</button>`
         : task.status === "stopped"
           ? `<p class="meta error">${escapeHtml(task.error || "任务已停止")}</p><button class="retry" data-id="${task.id}" type="button">重新加入队列</button>`
-          : `<p class="meta">${task.resolution ? `分辨率：${escapeHtml(task.resolution)}` : "等待自动提取最高分辨率"}</p><button class="stop" data-id="${task.id}" type="button">停止</button>`;
+          : `<p class="meta">${task.resolution ? `${resolutionLabel}：${escapeHtml(task.resolution)}` : waitingText}</p><button class="stop" data-id="${task.id}" type="button">停止</button>`;
     return `<article class="task">
-      <div class="task-head">
-        <div class="url">${escapeHtml(task.url)}</div>
-        <span class="badge ${escapeHtml(task.status)}">${escapeHtml(statusText(task.status))}</span>
+      ${thumbnail}
+      <div>
+        <div class="task-head">
+          <div class="url">${escapeHtml(task.url)}</div>
+          <span class="badge ${escapeHtml(task.status)}">${escapeHtml(statusText(task.status))}</span>
+        </div>
+        <p class="meta">${escapeHtml(mediaText(mediaType))}</p>
+        ${detail}
       </div>
-      ${detail}
     </article>`;
   }).join("");
 }
