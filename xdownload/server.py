@@ -21,27 +21,28 @@ PAGE_HTML = """<!doctype html>
   <style>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f6f7f9; color: #172033; }
-    main { width: min(1120px, calc(100vw - 32px)); margin: 40px auto; }
+    main { width: min(1180px, calc(100vw - 32px)); margin: 36px auto; }
     h1 { font-size: 28px; margin: 0 0 18px; letter-spacing: 0; }
-    .layout { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 18px; align-items: start; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 18px; align-items: start; }
     label { display: block; margin: 0 0 8px; color: #374151; font-size: 14px; font-weight: 600; }
     input[type="text"] { width: 100%; box-sizing: border-box; border: 1px solid #cfd6e4; border-radius: 8px; padding: 11px 12px; font-size: 15px; line-height: 1.4; background: #fff; }
     textarea { width: 100%; min-height: 170px; box-sizing: border-box; resize: vertical; border: 1px solid #cfd6e4; border-radius: 8px; padding: 14px; font-size: 16px; line-height: 1.5; background: #fff; }
     .field { margin-top: 14px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 18px; }
+    .actions { display: flex; justify-content: flex-end; margin: 14px 0 18px; }
     button { border: 0; border-radius: 8px; padding: 11px 16px; font-size: 15px; cursor: pointer; color: #fff; background: #1f6feb; }
-    button.secondary { background: #4c5566; }
     button.retry { background: #b45309; padding: 7px 10px; font-size: 13px; }
     button.stop { background: #b42318; padding: 7px 10px; font-size: 13px; }
     button:disabled { cursor: wait; opacity: .66; }
     .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 16px; min-height: 240px; }
     .hint, .empty { color: #536179; margin: 0; line-height: 1.5; }
-    .queue { display: grid; gap: 10px; }
-    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 12px; background: #fff; display: grid; grid-template-columns: 92px 1fr; gap: 12px; }
-    .thumb { width: 92px; height: 92px; object-fit: cover; border-radius: 6px; background: #eef2f7; border: 1px solid #e5e9f2; }
+    .queue { display: grid; gap: 8px; }
+    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 10px; background: #fff; display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+    .thumb { width: 74px; height: 74px; object-fit: cover; border-radius: 6px; background: #eef2f7; border: 1px solid #e5e9f2; }
     .thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #7b8798; font-size: 13px; }
-    .task-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 8px; }
-    .url { min-width: 0; overflow-wrap: anywhere; color: #172033; }
+    .task-main { min-width: 0; display: grid; gap: 6px; }
+    .task-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #172033; font-size: 14px; }
+    .task-actions { display: flex; justify-content: flex-end; align-items: center; min-width: 86px; }
     .badge { flex: 0 0 auto; border-radius: 999px; padding: 3px 9px; font-size: 12px; color: #fff; background: #64748b; }
     .badge.queued { background: #64748b; }
     .badge.running { background: #2563eb; }
@@ -52,7 +53,13 @@ PAGE_HTML = """<!doctype html>
     .meta { margin: 0; color: #536179; overflow-wrap: anywhere; line-height: 1.45; }
     .error { color: #b42318; }
     .path { color: #116329; word-break: break-all; }
-    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+    .detail { font-size: 13px; }
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; }
+      .task { grid-template-columns: 64px minmax(0, 1fr); align-items: start; }
+      .thumb { width: 64px; height: 64px; }
+      .task-actions { grid-column: 2; justify-content: flex-start; }
+    }
   </style>
 </head>
 <body>
@@ -61,9 +68,8 @@ PAGE_HTML = """<!doctype html>
   <div class="layout">
     <section class="panel">
       <label for="tweetInput">媒体链接</label>
-      <textarea id="tweetInput" placeholder="粘贴 X/Twitter 图片或视频链接，每次提交会自动加入下载队列"></textarea>
+      <textarea id="tweetInput" placeholder="粘贴 X/Twitter 图片或视频链接；多个链接请每行一个"></textarea>
       <div class="actions">
-        <button class="secondary" id="pasteBtn" type="button">粘贴</button>
         <button id="enqueueBtn" type="button">加入队列</button>
       </div>
       <div class="field">
@@ -86,7 +92,7 @@ const downloadDirInput = document.querySelector("#downloadDirInput");
 const queuePanel = document.querySelector("#queuePanel");
 const messageText = document.querySelector("#messageText");
 const downloadDirText = document.querySelector("#downloadDirText");
-const buttons = [...document.querySelectorAll("button")];
+const enqueueBtn = document.querySelector("#enqueueBtn");
 let downloadDir = "";
 
 async function loadDefaultConfig() {
@@ -110,7 +116,7 @@ function updateDownloadDirText(concurrency = "", timeout = "") {
 }
 
 function setBusy(isBusy) {
-  buttons.forEach((button) => button.disabled = isBusy);
+  enqueueBtn.disabled = isBusy;
 }
 
 function showStatus(message, className = "status") {
@@ -137,9 +143,13 @@ async function postJson(url, payload) {
   return data;
 }
 
+function splitInputUrls(value) {
+  return value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+}
+
 async function enqueueLink() {
-  const tweetUrl = input.value.trim();
-  if (!tweetUrl) {
+  const tweetUrls = splitInputUrls(input.value);
+  if (!tweetUrls.length) {
     input.focus();
     throw new Error("请先输入链接");
   }
@@ -150,9 +160,9 @@ async function enqueueLink() {
   }
   localStorage.setItem("xdownload.downloadDir", downloadDir);
   updateDownloadDirText();
-  await postJson("/api/enqueue", {url: tweetUrl, download_dir: downloadDir});
+  const data = await postJson("/api/enqueue", {urls: tweetUrls, download_dir: downloadDir});
   input.value = "";
-  showStatus("已加入下载队列。");
+  showStatus(`已加入 ${data.count || tweetUrls.length} 条链接。`);
   await loadQueue();
 }
 
@@ -188,35 +198,32 @@ function renderQueue(tasks) {
       : `<div class="thumb placeholder">${escapeHtml(mediaText(mediaType))}</div>`;
     const waitingText = mediaType === "image" ? "等待自动下载原图" : "等待自动提取最高分辨率";
     const resolutionLabel = mediaType === "image" ? "质量" : "分辨率";
+    const action = task.status === "failed" || task.status === "stopped"
+      ? `<button class="retry" data-id="${task.id}" type="button">重试</button>`
+      : task.status === "success"
+        ? ""
+        : `<button class="stop" data-id="${task.id}" type="button">停止</button>`;
     const detail = task.status === "success"
-      ? `<p class="meta path">已保存：${escapeHtml(task.path)}</p>`
+      ? `<p class="meta path detail">已保存：${escapeHtml(task.path)}</p>`
       : task.status === "failed"
-        ? `<p class="meta error">${escapeHtml(task.error || "下载失败")}</p><button class="retry" data-id="${task.id}" type="button">重新加入队列</button>`
+        ? `<p class="meta error detail">${escapeHtml(task.error || "下载失败")}</p>`
         : task.status === "stopped"
-          ? `<p class="meta error">${escapeHtml(task.error || "任务已停止")}</p><button class="retry" data-id="${task.id}" type="button">重新加入队列</button>`
-          : `<p class="meta">${task.resolution ? `${resolutionLabel}：${escapeHtml(task.resolution)}` : waitingText}</p><button class="stop" data-id="${task.id}" type="button">停止</button>`;
+          ? `<p class="meta error detail">${escapeHtml(task.error || "任务已停止")}</p>`
+          : `<p class="meta detail">${task.resolution ? `${resolutionLabel}：${escapeHtml(task.resolution)}` : waitingText}</p>`;
     return `<article class="task">
       ${thumbnail}
-      <div>
-        <div class="task-head">
-          <div class="url">${escapeHtml(task.url)}</div>
+      <div class="task-main">
+        <div class="task-top">
           <span class="badge ${escapeHtml(task.status)}">${escapeHtml(statusText(task.status))}</span>
+          <span class="meta">${escapeHtml(mediaText(mediaType))}</span>
         </div>
-        <p class="meta">${escapeHtml(mediaText(mediaType))}</p>
+        <div class="url" title="${escapeHtml(task.url)}">${escapeHtml(task.url)}</div>
         ${detail}
       </div>
+      <div class="task-actions">${action}</div>
     </article>`;
   }).join("");
 }
-
-document.querySelector("#pasteBtn").addEventListener("click", async () => {
-  try {
-    input.value = await navigator.clipboard.readText();
-  } catch (error) {
-    input.value = "";
-  }
-  input.focus();
-});
 
 document.querySelector("#enqueueBtn").addEventListener("click", async () => {
   setBusy(true);
@@ -309,8 +316,11 @@ def create_handler(
             try:
                 payload = self._read_json()
                 if self.path == "/api/enqueue":
-                    task = self._enqueue_task(payload)
-                    self._send_json({"ok": True, "task": task})
+                    result = self._enqueue_task(payload)
+                    if "tasks" in result:
+                        self._send_json({"ok": True, **result})
+                    else:
+                        self._send_json({"ok": True, "task": result, "count": 1})
                     return
                 if self.path == "/api/retry":
                     task = self._retry_task(payload)
@@ -353,10 +363,19 @@ def create_handler(
 
         @staticmethod
         def _enqueue_task(payload: dict[str, Any]) -> dict[str, Any]:
-            url = str(payload.get("url") or "").strip()
             download_dir = str(payload.get("download_dir") or "").strip()
             if not download_dir:
                 raise ValueError("请先设置下载目录")
+            urls = payload.get("urls")
+            if isinstance(urls, list):
+                cleaned_urls = [str(url).strip() for url in urls if str(url).strip()]
+                if not cleaned_urls:
+                    raise ValueError("请先输入链接")
+                tasks = [queue.enqueue(url, Path(download_dir)) for url in cleaned_urls]
+                return {"count": len(tasks), "tasks": tasks}
+            url = str(payload.get("url") or "").strip()
+            if not url:
+                raise ValueError("请先输入链接")
             return queue.enqueue(url, Path(download_dir))
 
         @staticmethod

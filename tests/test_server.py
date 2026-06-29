@@ -113,6 +113,38 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(task["status"], "queued")
         self.assertEqual(queue.enqueued[0], ("https://x.com/a", Path("/vol1/1000/videos")))
 
+    def test_batch_enqueue_payload_uses_queue_for_each_url(self):
+        queue = FakeQueue()
+        handler = create_handler(
+            AppConfig(download_dir=Path("/tmp/default"), port=8888, queue_file=Path("/tmp/queue.json"), max_concurrency=2, task_timeout_seconds=30),
+            FakeExtractor(),
+            FakeDownloader(),
+            queue,
+        )
+
+        result = handler._enqueue_task(
+            {
+                "urls": ["https://x.com/a", "", " https://x.com/b "],
+                "download_dir": "/vol1/1000/videos",
+            }
+        )
+
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(
+            queue.enqueued,
+            [
+                ("https://x.com/a", Path("/vol1/1000/videos")),
+                ("https://x.com/b", Path("/vol1/1000/videos")),
+            ],
+        )
+
+    def test_page_splits_multiline_links_for_batch_enqueue(self):
+        self.assertIn("splitInputUrls", PAGE_HTML)
+        self.assertIn("urls: tweetUrls", PAGE_HTML)
+        self.assertIn("已加入 ${data.count || tweetUrls.length} 条链接", PAGE_HTML)
+        self.assertNotIn('id="pasteBtn"', PAGE_HTML)
+        self.assertIn('class="task-actions"', PAGE_HTML)
+
     def test_enqueue_without_download_dir_is_rejected(self):
         handler = create_handler(
             AppConfig(download_dir=Path("/tmp/default"), port=8888, queue_file=Path("/tmp/queue.json"), max_concurrency=2, task_timeout_seconds=30),
