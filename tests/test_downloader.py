@@ -138,8 +138,29 @@ class DownloaderTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             downloader = VideoDownloader(Path(temp_dir), today=lambda: date(2026, 6, 9), retry_delay_seconds=0)
+            downloader._open_ipv4 = lambda request, timeout: (_ for _ in ()).throw(
+                urllib.error.URLError(ConnectionResetError(104, "Connection reset by peer"))
+            )
             with patch("urllib.request.urlopen", fake_urlopen):
                 with self.assertRaisesRegex(DownloadNetworkError, "下载视频文件失败：连接被远端重置"):
                     downloader.download(
                         {"resolution": "720x800", "url": "https://video.twimg.com/foo.mp4"},
                     )
+
+    def test_download_falls_back_to_ipv4_after_connection_reset(self):
+        def fake_urlopen(request, timeout):
+            raise urllib.error.URLError(ConnectionResetError(104, "Connection reset by peer"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloader = VideoDownloader(Path(temp_dir), today=lambda: date(2026, 6, 9), retry_delay_seconds=0)
+            downloader._open_ipv4 = lambda request, timeout: FakeResponse(chunks=[b"abc", b""])
+
+            with patch("urllib.request.urlopen", fake_urlopen):
+                path = downloader.download(
+                    {
+                        "resolution": "720x800",
+                        "url": "https://video.twimg.com/amplify_video/foo/vid/avc1/720x800/file.mp4",
+                    },
+                )
+
+            self.assertEqual(path.read_bytes(), b"abc")
