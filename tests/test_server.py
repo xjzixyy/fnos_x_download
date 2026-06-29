@@ -140,10 +140,16 @@ class ServerTest(unittest.TestCase):
 
     def test_page_splits_multiline_links_for_batch_enqueue(self):
         self.assertIn("splitInputUrls", PAGE_HTML)
+        self.assertIn(r"split(/\r?\n/)", PAGE_HTML)
+        self.assertNotIn("split(/\r?\n/)", PAGE_HTML)
         self.assertIn("urls: tweetUrls", PAGE_HTML)
         self.assertIn("已加入 ${data.count || tweetUrls.length} 条链接", PAGE_HTML)
         self.assertNotIn('id="pasteBtn"', PAGE_HTML)
         self.assertIn('class="task-actions"', PAGE_HTML)
+
+    def test_page_renders_brand_logo(self):
+        self.assertIn('class="brand-logo"', PAGE_HTML)
+        self.assertIn("<title>x下载</title>", PAGE_HTML)
 
     def test_enqueue_without_download_dir_is_rejected(self):
         handler = create_handler(

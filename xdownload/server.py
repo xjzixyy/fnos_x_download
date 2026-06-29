@@ -22,7 +22,9 @@ PAGE_HTML = """<!doctype html>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f6f7f9; color: #172033; }
     main { width: min(1180px, calc(100vw - 32px)); margin: 36px auto; }
-    h1 { font-size: 28px; margin: 0 0 18px; letter-spacing: 0; }
+    .brand { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; }
+    .brand-logo { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 8px; box-shadow: 0 8px 20px rgba(31, 111, 235, .18); }
+    h1 { font-size: 28px; margin: 0; letter-spacing: 0; }
     .layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 18px; align-items: start; }
     label { display: block; margin: 0 0 8px; color: #374151; font-size: 14px; font-weight: 600; }
     input[type="text"] { width: 100%; box-sizing: border-box; border: 1px solid #cfd6e4; border-radius: 8px; padding: 11px 12px; font-size: 15px; line-height: 1.4; background: #fff; }
@@ -64,7 +66,17 @@ PAGE_HTML = """<!doctype html>
 </head>
 <body>
 <main>
-  <h1>x下载</h1>
+  <div class="brand">
+    <svg class="brand-logo" viewBox="0 0 256 256" role="img" aria-labelledby="brandLogoTitle">
+      <title id="brandLogoTitle">x下载</title>
+      <rect width="256" height="256" rx="48" fill="#172033"></rect>
+      <path d="M62 56l44 72-46 72h32l30-48 29 48h43l-50-78 42-66h-32l-26 42-25-42H62z" fill="#fff"></path>
+      <path d="M128 50v104" stroke="#22c55e" stroke-width="18" stroke-linecap="round"></path>
+      <path d="M91 122l37 38 37-38" fill="none" stroke="#22c55e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></path>
+      <rect x="70" y="190" width="116" height="14" rx="7" fill="#22c55e"></rect>
+    </svg>
+    <h1>x下载</h1>
+  </div>
   <div class="layout">
     <section class="panel">
       <label for="tweetInput">媒体链接</label>
@@ -144,7 +156,7 @@ async function postJson(url, payload) {
 }
 
 function splitInputUrls(value) {
-  return value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+  return value.split(/\\r?\\n/).map((url) => url.trim()).filter(Boolean);
 }
 
 async function enqueueLink() {

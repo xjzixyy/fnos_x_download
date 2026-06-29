@@ -20,7 +20,7 @@ cp -R "$ROOT_DIR/packaging/fnos-native/app" "$APP_NAME/app"
 cp "$ROOT_DIR/packaging/fnos-native/cmd/main" "$APP_NAME/cmd/main"
 cp "$ROOT_DIR/packaging/fnos-native/manifest" "$APP_NAME/manifest"
 cp "$ROOT_DIR/packaging/fnos-native/ICON.PNG" "$APP_NAME/ICON.PNG"
-cp "$ROOT_DIR/packaging/fnos-native/ICON.PNG" "$APP_NAME/ICON_256.PNG"
+cp "$ROOT_DIR/packaging/fnos-native/ICON_256.PNG" "$APP_NAME/ICON_256.PNG"
 cp "$ROOT_DIR/packaging/fnos-native/config/privilege" "$APP_NAME/config/privilege"
 cp "$ROOT_DIR/packaging/fnos-native/config/resource" "$APP_NAME/config/resource"
 
