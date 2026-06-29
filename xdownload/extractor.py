@@ -303,13 +303,15 @@ class TwitterVideoDownloaderExtractor:
         return [group.to_dict() for group in groups]
 
     def extract_media(self, tweet_url: str) -> list[dict[str, str]]:
-        media_items: list[dict[str, str]] = []
         try:
             groups = self.extract_video_groups(tweet_url)
-            media_items.extend(choose_highest_quality([group]) for group in groups)
-        except ValueError:
-            pass
+            return [choose_highest_quality([group]) for group in groups]
+        except ValueError as exc:
+            video_error = exc
         tweet_html = self._request_text(tweet_url.strip(), error_context="请求推文页面")
+        if _tweet_html_has_video_marker(tweet_html):
+            raise video_error
+        media_items: list[dict[str, str]] = []
         media_items.extend(extract_image_items(tweet_html))
         if not media_items:
             raise ValueError("没有从推文中提取到图片或视频")
@@ -375,3 +377,19 @@ def _describe_network_error(exc: BaseException) -> str:
     if isinstance(reason, TimeoutError):
         return "网络请求超时，请稍后重试"
     return str(exc)
+
+
+def _tweet_html_has_video_marker(tweet_html: str) -> bool:
+    lowered = html.unescape(tweet_html).lower()
+    video_markers = (
+        'property="og:type" content="video',
+        "property='og:type' content='video",
+        'name="twitter:card" content="player"',
+        "name='twitter:card' content='player'",
+        'property="og:video',
+        "property='og:video",
+        "video.twimg.com",
+        "data-testid=\"videoPlayer\"".lower(),
+        "<video",
+    )
+    return any(marker in lowered for marker in video_markers)

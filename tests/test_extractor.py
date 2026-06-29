@@ -157,6 +157,45 @@ class ExtractorTest(unittest.TestCase):
             ],
         )
 
+    def test_extract_media_does_not_treat_video_thumbnail_as_image_when_video_parser_fails(self):
+        class StaticOpener:
+            def open(self, request, timeout):
+                url = request.full_url
+                if "twittervideodownloader.com" in url:
+                    return FakeTextResponse("<html><form id='myForm' action='/download'></form></html>")
+                return FakeTextResponse(
+                    """
+                    <meta property="og:type" content="video.other">
+                    <meta property="og:image" content="https://pbs.twimg.com/media/THUMB.jpg:large">
+                    """
+                )
+
+        extractor = TwitterVideoDownloaderExtractor(StaticOpener(), retry_delay_seconds=0)
+
+        with self.assertRaisesRegex(ValueError, "没有从下载页面提取到视频链接"):
+            extractor.extract_media("https://x.com/a/status/1")
+
+    def test_extract_media_does_not_append_video_thumbnail_as_image(self):
+        class StaticOpener:
+            def open(self, request, timeout):
+                url = request.full_url
+                if url == "https://twittervideodownloader.com/en/":
+                    return FakeTextResponse("<html><form id='myForm' action='/download'></form></html>")
+                if "twittervideodownloader.com" in url:
+                    return FakeTextResponse(SAMPLE_DOWNLOAD_HTML)
+                return FakeTextResponse(
+                    """
+                    <meta name="twitter:card" content="player">
+                    <meta property="og:image" content="https://pbs.twimg.com/media/THUMB.jpg:large">
+                    """
+                )
+
+        extractor = TwitterVideoDownloaderExtractor(StaticOpener(), retry_delay_seconds=0)
+
+        items = extractor.extract_media("https://x.com/a/status/1")
+
+        self.assertEqual([item["media_type"] for item in items], ["video", "video"])
+
     def test_extract_reports_connection_reset_during_home_request(self):
         class ResettingOpener:
             def open(self, request, timeout):
