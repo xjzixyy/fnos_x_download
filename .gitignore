@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.DS_Store
+
+dist/
+queue.json
+queue.json.tmp
+
+.venv/
+venv/
+env/

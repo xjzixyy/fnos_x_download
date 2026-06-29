@@ -1,0 +1,19 @@
+[Unit]
+Description=x下载
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+Environment=XDOWNLOAD_DOWNLOAD_DIR=__DOWNLOAD_DIR__
+Environment=XDOWNLOAD_QUEUE_FILE=__QUEUE_FILE__
+Environment=XDOWNLOAD_MAX_CONCURRENCY=2
+Environment=XDOWNLOAD_TASK_TIMEOUT_SECONDS=1800
+Environment=XDOWNLOAD_PORT=8765
+ExecStart=/usr/bin/python3 __APP_DIR__/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

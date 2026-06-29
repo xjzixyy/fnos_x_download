@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+APP_NAME="xdownload"
+TARGET_DIR="/var/apps/${APP_NAME}/target"
+DATA_DIR="/var/apps/${APP_NAME}/data"
+DOWNLOAD_DIR="${DATA_DIR}/downloads"
+QUEUE_FILE="${DATA_DIR}/queue.json"
+SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
+
+install_service() {
+  mkdir -p "$DOWNLOAD_DIR"
+
+  sed \
+    -e "s#__APP_DIR__#${TARGET_DIR}#g" \
+    -e "s#__DOWNLOAD_DIR__#${DOWNLOAD_DIR}#g" \
+    -e "s#__QUEUE_FILE__#${QUEUE_FILE}#g" \
+    "$TARGET_DIR/bin/xdownload.service.in" > "$SERVICE_FILE"
+
+  systemctl daemon-reload
+  systemctl enable "${APP_NAME}.service"
+}
+
+case "${1:-}" in
+install)
+  install_service
+  ;;
+uninstall)
+  systemctl stop "${APP_NAME}.service" 2>/dev/null || true
+  systemctl disable "${APP_NAME}.service" 2>/dev/null || true
+  rm -f "$SERVICE_FILE"
+  systemctl daemon-reload
+  ;;
+start)
+  install_service
+  systemctl restart "${APP_NAME}.service"
+  ;;
+stop)
+  systemctl stop "${APP_NAME}.service"
+  ;;
+status)
+  systemctl status "${APP_NAME}.service" --no-pager
+  ;;
+*)
+  echo "Usage: $0 {install|uninstall|start|stop|status}" >&2
+  exit 1
+  ;;
+esac

@@ -1,0 +1,11 @@
+{
+  ".url": {
+    "xdownload.Application": {
+      "title": "x下载",
+      "type": "iframe",
+      "protocol": "http",
+      "url": "/cgi/ThirdParty/xdownload/index.cgi",
+      "allUsers": true
+    }
+  }
+}

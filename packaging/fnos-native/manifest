@@ -1,0 +1,10 @@
+appname               = xdownload
+version               = 1.0.0
+display_name          = x下载
+desc                  = <p>本地 X/Twitter 视频下载服务。</p><p>默认端口：8765；安装后使用系统 Python3 运行。</p>
+arch                  = x86_64
+source                = thirdparty
+maintainer            = fl
+distributor           = fl
+desktop_uidir         = ui
+desktop_applaunchname = xdownload.Application
