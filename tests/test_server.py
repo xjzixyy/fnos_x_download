@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from xdownload.config import AppConfig
-from xdownload.server import PAGE_HTML, create_handler
+from xdownload.server import ICON_PATH, PAGE_HTML, create_handler
 
 
 class FakeExtractor:
@@ -149,7 +149,9 @@ class ServerTest(unittest.TestCase):
 
     def test_page_renders_brand_logo(self):
         self.assertIn('class="brand-logo"', PAGE_HTML)
+        self.assertIn('src="/assets/icon.png"', PAGE_HTML)
         self.assertIn("<title>x下载</title>", PAGE_HTML)
+        self.assertTrue(ICON_PATH.exists())
 
     def test_enqueue_without_download_dir_is_rejected(self):
         handler = create_handler(

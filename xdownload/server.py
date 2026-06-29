@@ -12,6 +12,9 @@ from .extractor import TwitterVideoDownloaderExtractor, choose_highest_quality
 from .queue import DownloadQueue
 
 
+ICON_PATH = Path(__file__).with_name("assets") / "ICON.PNG"
+
+
 PAGE_HTML = """<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -67,14 +70,7 @@ PAGE_HTML = """<!doctype html>
 <body>
 <main>
   <div class="brand">
-    <svg class="brand-logo" viewBox="0 0 256 256" role="img" aria-labelledby="brandLogoTitle">
-      <title id="brandLogoTitle">x下载</title>
-      <rect width="256" height="256" rx="48" fill="#172033"></rect>
-      <path d="M62 56l44 72-46 72h32l30-48 29 48h43l-50-78 42-66h-32l-26 42-25-42H62z" fill="#fff"></path>
-      <path d="M128 50v104" stroke="#22c55e" stroke-width="18" stroke-linecap="round"></path>
-      <path d="M91 122l37 38 37-38" fill="none" stroke="#22c55e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></path>
-      <rect x="70" y="190" width="116" height="14" rx="7" fill="#22c55e"></rect>
-    </svg>
+    <img class="brand-logo" src="/assets/icon.png" alt="">
     <h1>x下载</h1>
   </div>
   <div class="layout">
@@ -307,6 +303,9 @@ def create_handler(
             if self.path in ("/", "/index.html"):
                 self._send_html(PAGE_HTML)
                 return
+            if self.path == "/assets/icon.png":
+                self._send_file(ICON_PATH, "image/png")
+                return
             if self.path == "/api/config":
                 self._send_json(
                     {
@@ -409,6 +408,14 @@ def create_handler(
             content = body.encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+        def _send_file(self, path: Path, content_type: str) -> None:
+            content = path.read_bytes()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)

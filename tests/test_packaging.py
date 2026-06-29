@@ -17,7 +17,20 @@ class PackagingTest(unittest.TestCase):
                 width, height = struct.unpack(">II", icon_file.read(8))
             self.assertEqual((width, height), (256, 256))
 
-    def test_fnos_icon_svg_source_is_present(self):
-        svg_path = ROOT / "packaging" / "fnos-native" / "ICON.svg"
+    def test_fnos_icon_source_is_present(self):
+        icon_path = ROOT / "packaging" / "fnos-native" / "ICON_SOURCE.PNG"
 
-        self.assertIn("<svg", svg_path.read_text(encoding="utf-8"))
+        self.assertTrue(icon_path.exists())
+        with icon_path.open("rb") as icon_file:
+            self.assertEqual(icon_file.read(8), b"\x89PNG\r\n\x1a\n")
+            icon_file.read(8)
+            width, height = struct.unpack(">II", icon_file.read(8))
+        self.assertEqual(width, height)
+        self.assertGreaterEqual(width, 256)
+
+    def test_web_icon_asset_is_present(self):
+        icon_path = ROOT / "xdownload" / "assets" / "ICON.PNG"
+
+        self.assertTrue(icon_path.exists())
+        with icon_path.open("rb") as icon_file:
+            self.assertEqual(icon_file.read(8), b"\x89PNG\r\n\x1a\n")

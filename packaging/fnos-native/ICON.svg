@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
-  <title id="title">x下载</title>
-  <rect width="256" height="256" rx="48" fill="#172033"/>
-  <path d="M62 56l44 72-46 72h32l30-48 29 48h43l-50-78 42-66h-32l-26 42-25-42H62z" fill="#fff"/>
-  <path d="M128 50v104" stroke="#22c55e" stroke-width="18" stroke-linecap="round"/>
-  <path d="M91 122l37 38 37-38" fill="none" stroke="#22c55e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="70" y="190" width="116" height="14" rx="7" fill="#22c55e"/>
-</svg>
