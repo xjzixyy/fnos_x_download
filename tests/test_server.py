@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from xdownload.config import AppConfig
-from xdownload.server import ICON_PATH, PAGE_HTML, create_handler
+from xdownload.server import PAGE_HTML, create_handler
 
 
 class FakeExtractor:
@@ -147,11 +147,18 @@ class ServerTest(unittest.TestCase):
         self.assertNotIn('id="pasteBtn"', PAGE_HTML)
         self.assertIn('class="task-actions"', PAGE_HTML)
 
-    def test_page_renders_brand_logo(self):
-        self.assertIn('class="brand-logo"', PAGE_HTML)
-        self.assertIn('src="/assets/icon.png"', PAGE_HTML)
+    def test_page_uses_window_title_without_inner_brand(self):
+        self.assertNotIn('class="brand-logo"', PAGE_HTML)
+        self.assertNotIn('src="/assets/icon.png"', PAGE_HTML)
+        self.assertNotIn("<h1>x下载</h1>", PAGE_HTML)
         self.assertIn("<title>x下载</title>", PAGE_HTML)
-        self.assertTrue(ICON_PATH.exists())
+
+    def test_page_uses_compact_form_and_scrollable_queue(self):
+        self.assertIn('id="enqueueBtn"', PAGE_HTML)
+        self.assertIn("#enqueueBtn { width: 100%; }", PAGE_HTML)
+        self.assertNotIn('id="downloadDirText"', PAGE_HTML)
+        self.assertNotIn("保存目录：", PAGE_HTML)
+        self.assertIn("queue-shell", PAGE_HTML)
 
     def test_enqueue_without_download_dir_is_rejected(self):
         handler = create_handler(

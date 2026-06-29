@@ -7,6 +7,11 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class PackagingTest(unittest.TestCase):
+    def test_manifest_version_is_1_0_1(self):
+        manifest_path = ROOT / "packaging" / "fnos-native" / "manifest"
+
+        self.assertIn("version               = 1.0.1", manifest_path.read_text(encoding="utf-8"))
+
     def test_fnos_icons_are_present_and_256_pngs(self):
         for name in ("ICON.PNG", "ICON_256.PNG"):
             icon_path = ROOT / "packaging" / "fnos-native" / name
@@ -27,10 +32,3 @@ class PackagingTest(unittest.TestCase):
             width, height = struct.unpack(">II", icon_file.read(8))
         self.assertEqual(width, height)
         self.assertGreaterEqual(width, 256)
-
-    def test_web_icon_asset_is_present(self):
-        icon_path = ROOT / "xdownload" / "assets" / "ICON.PNG"
-
-        self.assertTrue(icon_path.exists())
-        with icon_path.open("rb") as icon_file:
-            self.assertEqual(icon_file.read(8), b"\x89PNG\r\n\x1a\n")

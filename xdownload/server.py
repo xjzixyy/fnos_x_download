@@ -12,9 +12,6 @@ from .extractor import TwitterVideoDownloaderExtractor, choose_highest_quality
 from .queue import DownloadQueue
 
 
-ICON_PATH = Path(__file__).with_name("assets") / "ICON.PNG"
-
-
 PAGE_HTML = """<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -24,30 +21,29 @@ PAGE_HTML = """<!doctype html>
   <style>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f6f7f9; color: #172033; }
-    main { width: min(1180px, calc(100vw - 32px)); margin: 36px auto; }
-    .brand { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; }
-    .brand-logo { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 8px; box-shadow: 0 8px 20px rgba(31, 111, 235, .18); }
-    h1 { font-size: 28px; margin: 0; letter-spacing: 0; }
-    .layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 18px; align-items: start; }
+    main { width: min(1180px, calc(100vw - 20px)); margin: 10px auto; }
+    .layout { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 14px; align-items: start; }
     label { display: block; margin: 0 0 8px; color: #374151; font-size: 14px; font-weight: 600; }
     input[type="text"] { width: 100%; box-sizing: border-box; border: 1px solid #cfd6e4; border-radius: 8px; padding: 11px 12px; font-size: 15px; line-height: 1.4; background: #fff; }
-    textarea { width: 100%; min-height: 170px; box-sizing: border-box; resize: vertical; border: 1px solid #cfd6e4; border-radius: 8px; padding: 14px; font-size: 16px; line-height: 1.5; background: #fff; }
-    .field { margin-top: 14px; }
-    .actions { display: flex; justify-content: flex-end; margin: 14px 0 18px; }
+    textarea { width: 100%; min-height: 150px; box-sizing: border-box; resize: vertical; border: 1px solid #cfd6e4; border-radius: 8px; padding: 14px; font-size: 16px; line-height: 1.5; background: #fff; }
+    .field { margin-top: 12px; }
+    .actions { display: flex; margin: 12px 0 16px; }
     button { border: 0; border-radius: 8px; padding: 11px 16px; font-size: 15px; cursor: pointer; color: #fff; background: #1f6feb; }
+    #enqueueBtn { width: 100%; }
     button.retry { background: #b45309; padding: 7px 10px; font-size: 13px; }
     button.stop { background: #b42318; padding: 7px 10px; font-size: 13px; }
     button:disabled { cursor: wait; opacity: .66; }
-    .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 16px; min-height: 240px; }
+    .panel { background: #fff; border: 1px solid #dde3ee; border-radius: 8px; padding: 14px; min-height: 220px; box-sizing: border-box; }
+    .queue-shell { max-height: calc(100vh - 20px); overflow-y: auto; }
     .hint, .empty { color: #536179; margin: 0; line-height: 1.5; }
-    .queue { display: grid; gap: 8px; }
-    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 10px; background: #fff; display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-    .thumb { width: 74px; height: 74px; object-fit: cover; border-radius: 6px; background: #eef2f7; border: 1px solid #e5e9f2; }
-    .thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #7b8798; font-size: 13px; }
-    .task-main { min-width: 0; display: grid; gap: 6px; }
+    .queue { display: grid; gap: 6px; }
+    .task { border: 1px solid #e5e9f2; border-radius: 8px; padding: 8px; background: #fff; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: center; }
+    .thumb { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; background: #eef2f7; border: 1px solid #e5e9f2; }
+    .thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #7b8798; font-size: 12px; }
+    .task-main { min-width: 0; display: grid; gap: 4px; }
     .task-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #172033; font-size: 14px; }
-    .task-actions { display: flex; justify-content: flex-end; align-items: center; min-width: 86px; }
+    .task-actions { display: inline-flex; margin-left: 8px; vertical-align: middle; }
     .badge { flex: 0 0 auto; border-radius: 999px; padding: 3px 9px; font-size: 12px; color: #fff; background: #64748b; }
     .badge.queued { background: #64748b; }
     .badge.running { background: #2563eb; }
@@ -61,18 +57,12 @@ PAGE_HTML = """<!doctype html>
     .detail { font-size: 13px; }
     @media (max-width: 760px) {
       .layout { grid-template-columns: 1fr; }
-      .task { grid-template-columns: 64px minmax(0, 1fr); align-items: start; }
-      .thumb { width: 64px; height: 64px; }
-      .task-actions { grid-column: 2; justify-content: flex-start; }
+      .queue-shell { max-height: none; overflow-y: visible; }
     }
   </style>
 </head>
 <body>
 <main>
-  <div class="brand">
-    <img class="brand-logo" src="/assets/icon.png" alt="">
-    <h1>x下载</h1>
-  </div>
   <div class="layout">
     <section class="panel">
       <label for="tweetInput">媒体链接</label>
@@ -84,10 +74,9 @@ PAGE_HTML = """<!doctype html>
         <label for="downloadDirInput">基础下载地址</label>
         <input id="downloadDirInput" type="text" autocomplete="off" placeholder="/vol1/1000/downloads/xdownload">
       </div>
-      <p class="hint" id="downloadDirText"></p>
       <p class="hint" id="messageText"></p>
     </section>
-    <section class="panel">
+    <section class="panel queue-shell">
       <div id="queuePanel" class="queue">
         <p class="empty">下载队列为空。</p>
       </div>
@@ -99,7 +88,6 @@ const input = document.querySelector("#tweetInput");
 const downloadDirInput = document.querySelector("#downloadDirInput");
 const queuePanel = document.querySelector("#queuePanel");
 const messageText = document.querySelector("#messageText");
-const downloadDirText = document.querySelector("#downloadDirText");
 const enqueueBtn = document.querySelector("#enqueueBtn");
 let downloadDir = "";
 
@@ -108,19 +96,10 @@ async function loadDefaultConfig() {
     const data = await fetch("/api/config").then((response) => response.json());
     downloadDir = localStorage.getItem("xdownload.downloadDir") || data.download_dir || "";
     downloadDirInput.value = downloadDir;
-    const concurrency = data.max_concurrency ? `；并发：${data.max_concurrency}` : "";
-    const timeout = data.task_timeout_seconds ? `；超时：${data.task_timeout_seconds} 秒` : "";
-    updateDownloadDirText(concurrency, timeout);
   } catch (error) {
     downloadDir = localStorage.getItem("xdownload.downloadDir") || "";
     downloadDirInput.value = downloadDir;
-    updateDownloadDirText("", "");
   }
-}
-
-function updateDownloadDirText(concurrency = "", timeout = "") {
-  const value = downloadDirInput.value.trim();
-  downloadDirText.textContent = value ? `保存目录：${value}/YYYYMMDD${concurrency}${timeout}` : "";
 }
 
 function setBusy(isBusy) {
@@ -167,7 +146,6 @@ async function enqueueLink() {
     throw new Error("下载目录未设置");
   }
   localStorage.setItem("xdownload.downloadDir", downloadDir);
-  updateDownloadDirText();
   const data = await postJson("/api/enqueue", {urls: tweetUrls, download_dir: downloadDir});
   input.value = "";
   showStatus(`已加入 ${data.count || tweetUrls.length} 条链接。`);
@@ -214,10 +192,10 @@ function renderQueue(tasks) {
     const detail = task.status === "success"
       ? `<p class="meta path detail">已保存：${escapeHtml(task.path)}</p>`
       : task.status === "failed"
-        ? `<p class="meta error detail">${escapeHtml(task.error || "下载失败")}</p>`
+        ? `<p class="meta error detail">${escapeHtml(task.error || "下载失败")}${action ? `<span class="task-actions">${action}</span>` : ""}</p>`
         : task.status === "stopped"
-          ? `<p class="meta error detail">${escapeHtml(task.error || "任务已停止")}</p>`
-          : `<p class="meta detail">${task.resolution ? `${resolutionLabel}：${escapeHtml(task.resolution)}` : waitingText}</p>`;
+          ? `<p class="meta error detail">${escapeHtml(task.error || "任务已停止")}${action ? `<span class="task-actions">${action}</span>` : ""}</p>`
+          : `<p class="meta detail">${task.resolution ? `${resolutionLabel}：${escapeHtml(task.resolution)}` : waitingText}${action ? `<span class="task-actions">${action}</span>` : ""}</p>`;
     return `<article class="task">
       ${thumbnail}
       <div class="task-main">
@@ -228,7 +206,6 @@ function renderQueue(tasks) {
         <div class="url" title="${escapeHtml(task.url)}">${escapeHtml(task.url)}</div>
         ${detail}
       </div>
-      <div class="task-actions">${action}</div>
     </article>`;
   }).join("");
 }
@@ -249,7 +226,6 @@ downloadDirInput.addEventListener("change", () => {
   if (downloadDir) {
     localStorage.setItem("xdownload.downloadDir", downloadDir);
   }
-  updateDownloadDirText();
 });
 
 queuePanel.addEventListener("click", async (event) => {
@@ -302,9 +278,6 @@ def create_handler(
         def do_GET(self) -> None:
             if self.path in ("/", "/index.html"):
                 self._send_html(PAGE_HTML)
-                return
-            if self.path == "/assets/icon.png":
-                self._send_file(ICON_PATH, "image/png")
                 return
             if self.path == "/api/config":
                 self._send_json(
@@ -408,14 +381,6 @@ def create_handler(
             content = body.encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(content)))
-            self.end_headers()
-            self.wfile.write(content)
-
-        def _send_file(self, path: Path, content_type: str) -> None:
-            content = path.read_bytes()
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)
